@@ -13,7 +13,8 @@
 #include <unistd.h>
 
 
-#define BLK_SIZE 4096
+#define CHUNK_SIZE (1024 * 1024)
+#define BLOCK_SIZE 4096
 
 
 const char *path_src = NULL;
@@ -22,8 +23,8 @@ int fd_src = -1;
 int fd_dst = -1;
 off_t len_src = 0;
 off_t len_dst = 0;
-const char *mem_zero = NULL;
-const char *mem_src = NULL;
+char *mem_zero = NULL;
+char *mem_src = NULL;
 char *mem_dst = NULL;
 
 bool falloc_ok = true;
@@ -34,8 +35,8 @@ int main(int argc, char **argv) {
 		errx(1, "expected 2 arguments");
 	}
 	
-	if ((mem_zero = mmap(NULL, BLK_SIZE, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS,
-		-1, 0)) == MAP_FAILED) {
+	if ((mem_zero = mmap(NULL, BLOCK_SIZE, PROT_READ,
+		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)) == MAP_FAILED) {
 		err(1, "anonymous mmap failed");
 	}
 	
@@ -82,13 +83,20 @@ int main(int argc, char **argv) {
 		err(1, "mmap on dst failed");
 	}
 	
+	if (madvise(mem_src, len_src, MADV_SEQUENTIAL) < 0) {
+		err(1, "madvise on src failed");
+	}
+	if (madvise(mem_dst, len_dst, MADV_SEQUENTIAL) < 0) {
+		err(1, "madvise on dst failed");
+	}
+	
 	warnx("copying now");
 	off_t off = 0;
 	size_t b_written = 0;
 	size_t b_punched = 0;
 	while (off < len_src) {
-		ssize_t count = BLK_SIZE;
-		if ((len_src - off) < BLK_SIZE) {
+		ssize_t count = BLOCK_SIZE;
+		if ((len_src - off) < BLOCK_SIZE) {
 			count = (len_src - off);
 		}
 		
