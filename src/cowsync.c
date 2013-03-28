@@ -212,6 +212,7 @@ int main(int argc, char **argv) {
 		double sec_diff = (double)msec_diff / 1000.;
 		double mb_total = (double)len_src / (1024. * 1024.);
 		
+		warnx("elapsed time: %.1fs", sec_diff);
 		warnx("avg rate: %.1fM/s", mb_total / sec_diff);
 	}
 	
