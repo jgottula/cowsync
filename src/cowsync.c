@@ -203,13 +203,16 @@ int main(int argc, char **argv) {
 	}
 	
 	if (time_ok) {
-		double sec_before = (time_before.tv_sec +
-			(time_before.tv_nsec / (1000 * 1000 * 1000)));
-		double sec_after = (time_after.tv_sec +
-			(time_after.tv_nsec / (1000 * 1000 * 1000)));
-		double mb_total = len_src / (1024 * 1024);
+		time_t msec_before = (time_before.tv_nsec / (1000 * 1000));
+		time_t msec_after  = (time_after.tv_nsec / (1000 * 1000));
 		
-		warnx("avg rate: %.1fM/s", mb_total / (sec_after - sec_before));
+		time_t msec_diff = ((time_after.tv_sec - time_before.tv_sec) * 1000) +
+			(msec_after - msec_before);
+		
+		double sec_diff = (double)msec_diff / 1000.;
+		double mb_total = (double)len_src / (1024. * 1024.);
+		
+		warnx("avg rate: %.1fM/s", mb_total / sec_diff);
 	}
 	
 	warnx("done");
