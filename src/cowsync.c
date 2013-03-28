@@ -116,6 +116,13 @@ int main(int argc, char **argv) {
 				if (munlock(ptr_dst - CHUNK_SIZE, CHUNK_SIZE) < 0) {
 					err(1, "munlock on dst failed @ %ldK", off / 1024);
 				}
+				
+				if (msync(ptr_src - CHUNK_SIZE, CHUNK_SIZE, MS_SYNC) < 0) {
+					err(1, "msync on src failed @ %ldK", off / 1024);
+				}
+				if (msync(ptr_dst - CHUNK_SIZE, CHUNK_SIZE, MS_SYNC) < 0) {
+					err(1, "msync on dst failed @ %ldK", off / 1024);
+				}
 			}
 			
 			if (mlock(ptr_src, len_chunk) < 0) {
@@ -155,13 +162,29 @@ int main(int argc, char **argv) {
 		}
 	}
 	
+	warnx("syncing to disk");
+	if (munlockall() < 0) {
+		warn("munlockall failed");
+	}
+	if (msync(mem_dst, len_dst, MS_SYNC) < 0) {
+		warn("msync on dst failed");
+	}
+	if (fsync(fd_dst) < 0) {
+		warn("fsync on dst failed");
+	}
+	
 	float pct_written = ((float)b_written / (float)len_src) * 100.f;
 	float pct_punched = ((float)b_punched / (float)len_src) * 100.f;
 	
 	warnx("%luK (%d%%) written", b_written / 1024, (int)pct_written);
 	warnx("%luK (%d%%) punched", b_punched / 1024, (int)pct_punched);
 	
-	// TODO: unmap
+	if (munmap(mem_src, len_src) < 0) {
+		warn("munmap on src failed");
+	}
+	if (munmap(mem_dst, len_dst) < 0) {
+		warn("munmap on dst failed");
+	}
 	
 	if (close(fd_src) < 0) {
 		warn("close failed: %s", path_src);
