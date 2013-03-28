@@ -40,7 +40,7 @@ bool falloc_ok = true;
 
 int main(int argc, char **argv) {
 	if (argc != 3) {
-		errx(1, "expected 2 arguments");
+		errx(1, "usage: %s <src> <dst>", argv[0]);
 	}
 	
 	if ((mem_zero = mmap(NULL, BLOCK_SIZE, PROT_READ,
