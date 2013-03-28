@@ -100,8 +100,18 @@ int main(int argc, char **argv) {
 			count = (len_src - off);
 		}
 		
-		const char *ptr_src = mem_src + off;
-		char *ptr_dst       = mem_dst + off;
+		char *ptr_src = mem_src + off;
+		char *ptr_dst = mem_dst + off;
+		
+		if ((off % CHUNK_SIZE) == 0) {
+			if (off != 0) {
+				madvise(ptr_src - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
+				madvise(ptr_dst - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
+			}
+			
+			madvise(ptr_src, CHUNK_SIZE, MADV_WILLNEED);
+			madvise(ptr_dst, CHUNK_SIZE, MADV_WILLNEED);
+		}
 		
 		if (memcmp(ptr_src, ptr_dst, count) != 0) {
 			if (falloc_ok && memcmp(ptr_src, mem_zero, count) == 0) {
