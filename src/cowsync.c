@@ -116,13 +116,6 @@ int main(int argc, char **argv) {
 				if (munlock(ptr_dst - CHUNK_SIZE, CHUNK_SIZE) < 0) {
 					err(1, "munlock on dst failed @ %ldK", off / 1024);
 				}
-				
-				if (msync(ptr_src - CHUNK_SIZE, CHUNK_SIZE, MS_SYNC) < 0) {
-					err(1, "msync on src failed @ %ldK", off / 1024);
-				}
-				if (msync(ptr_dst - CHUNK_SIZE, CHUNK_SIZE, MS_SYNC) < 0) {
-					err(1, "msync on dst failed @ %ldK", off / 1024);
-				}
 			}
 			
 			if (mlock(ptr_src, len_chunk) < 0) {
