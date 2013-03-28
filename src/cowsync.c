@@ -124,8 +124,11 @@ int main(int argc, char **argv) {
 		}
 	}
 	
-	warnx("%luK written", b_written / 1024);
-	warnx("%luK punched", b_punched / 1024);
+	float pct_written = ((float)b_written / (float)len_src) * 100.f;
+	float pct_punched = ((float)b_punched / (float)len_src) * 100.f;
+	
+	warnx("%luK (%d%%) written", b_written / 1024, (int)pct_written);
+	warnx("%luK (%d%%) punched", b_punched / 1024, (int)pct_punched);
 	
 	// TODO: unmap
 	
