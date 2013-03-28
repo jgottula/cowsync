@@ -167,15 +167,12 @@ int main(int argc, char **argv) {
 		}
 	}
 	
-	warnx("syncing to disk");
+	warnx("syncing pages");
 	if (munlockall() < 0) {
 		warn("munlockall failed");
 	}
 	if (msync(mem_dst, len_dst, MS_SYNC) < 0) {
 		warn("msync on dst failed");
-	}
-	if (fsync(fd_dst) < 0) {
-		warn("fsync on dst failed");
 	}
 	
 	if (munmap(mem_src, len_src) < 0) {
