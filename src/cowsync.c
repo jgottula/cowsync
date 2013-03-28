@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 
-#define CHUNK_SIZE (1024 * 1024)
+#define CHUNK_SIZE (1024 * 1024 * 1024)
 #define BLOCK_SIZE 4096
 
 
@@ -104,13 +104,26 @@ int main(int argc, char **argv) {
 		char *ptr_dst = mem_dst + off;
 		
 		if ((off % CHUNK_SIZE) == 0) {
+			size_t len_chunk = CHUNK_SIZE;
+			if ((len_src - off) < CHUNK_SIZE) {
+				len_chunk = (len_src - off);
+			}
+						
 			if (off != 0) {
-				madvise(ptr_src - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
-				madvise(ptr_dst - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
+				if (munlock(ptr_src - CHUNK_SIZE, CHUNK_SIZE) < 0) {
+					err(1, "munlock on src failed @ %ldK", off / 1024);
+				}
+				if (munlock(ptr_dst - CHUNK_SIZE, CHUNK_SIZE) < 0) {
+					err(1, "munlock on dst failed @ %ldK", off / 1024);
+				}
 			}
 			
-			madvise(ptr_src, CHUNK_SIZE, MADV_WILLNEED);
-			madvise(ptr_dst, CHUNK_SIZE, MADV_WILLNEED);
+			if (mlock(ptr_src, len_chunk) < 0) {
+				err(1, "mlock on src failed @ %ldK", off / 1024);
+			}
+			if (mlock(ptr_dst, len_chunk) < 0) {
+				err(1, "mlock on dst failed @ %ldK", off / 1024);
+			}
 		}
 		
 		if (memcmp(ptr_src, ptr_dst, count) != 0) {
