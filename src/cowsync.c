@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 
 
@@ -27,6 +28,10 @@ char *mem_zero = NULL;
 char *mem_src = NULL;
 char *mem_dst = NULL;
 
+struct timespec time_before;
+struct timespec time_after;
+
+bool time_ok = true;
 bool falloc_ok = true;
 
 
@@ -88,6 +93,10 @@ int main(int argc, char **argv) {
 	}
 	if (madvise(mem_dst, len_dst, MADV_SEQUENTIAL) < 0) {
 		warn("madvise on dst failed");
+	}
+	
+	if (clock_gettime(CLOCK_MONOTONIC, &time_before) < 0) {
+		time_ok = false;
 	}
 	
 	warnx("copying now");
@@ -169,12 +178,6 @@ int main(int argc, char **argv) {
 		warn("fsync on dst failed");
 	}
 	
-	float pct_written = ((float)b_written / (float)len_src) * 100.f;
-	float pct_punched = ((float)b_punched / (float)len_src) * 100.f;
-	
-	warnx("%luK (%d%%) written", b_written / 1024, (int)pct_written);
-	warnx("%luK (%d%%) punched", b_punched / 1024, (int)pct_punched);
-	
 	if (munmap(mem_src, len_src) < 0) {
 		warn("munmap on src failed");
 	}
@@ -187,6 +190,26 @@ int main(int argc, char **argv) {
 	}
 	if (close(fd_dst) < 0) {
 		warn("close failed: %s", path_dst);
+	}
+	
+	float pct_written = ((float)b_written / (float)len_src) * 100.f;
+	float pct_punched = ((float)b_punched / (float)len_src) * 100.f;
+	
+	warnx("%luK (%d%%) written", b_written / 1024, (int)pct_written);
+	warnx("%luK (%d%%) punched", b_punched / 1024, (int)pct_punched);
+	
+	if (clock_gettime(CLOCK_MONOTONIC, &time_after) < 0) {
+		time_ok = false;
+	}
+	
+	if (time_ok) {
+		double sec_before = (time_before.tv_sec +
+			(time_before.tv_nsec / (1000 * 1000 * 1000)));
+		double sec_after = (time_after.tv_sec +
+			(time_after.tv_nsec / (1000 * 1000 * 1000)));
+		double mb_total = len_src / (1024 * 1024);
+		
+		warnx("avg rate: %.1fM/s", mb_total / (sec_after - sec_before));
 	}
 	
 	warnx("done");
