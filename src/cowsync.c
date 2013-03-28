@@ -84,10 +84,10 @@ int main(int argc, char **argv) {
 	}
 	
 	if (madvise(mem_src, len_src, MADV_SEQUENTIAL) < 0) {
-		err(1, "madvise on src failed");
+		warn("madvise on src failed");
 	}
 	if (madvise(mem_dst, len_dst, MADV_SEQUENTIAL) < 0) {
-		err(1, "madvise on dst failed");
+		warn("madvise on dst failed");
 	}
 	
 	warnx("copying now");
