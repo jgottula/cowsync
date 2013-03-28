@@ -3,8 +3,11 @@
 
 
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/falloc.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -29,6 +32,8 @@ off_t len_dst = 0;
 char buf_zero[BLK_SIZE];
 char buf_src[BLK_SIZE];
 char buf_dst[BLK_SIZE];
+
+bool falloc_ok = true;
 
 
 int main(int argc, char **argv) {
@@ -90,28 +95,34 @@ int main(int argc, char **argv) {
 		}
 		
 		if (memcmp(buf_src, buf_dst, count) != 0) {
-			if (memcmp(buf_src, buf_zero, count) == 0) {
-				warnx("modified ZERO block @ %ldK", off / 1024);
+			if (falloc_ok && memcmp(buf_src, buf_zero, count) == 0) {
+				warnx("modified block [zero] @ %ldK", off / 1024);
 				
 				if (fallocate(fd_dst, FALLOC_FL_KEEP_SIZE |
-					FALLOC_FL_PUNCH_HOLE, off, count) < 0) {
-					err(1, "fallocate failed: dst @ %ldK", off / 1024);
+					FALLOC_FL_PUNCH_HOLE, off, count) == 0) {
+					continue;
+				} else {
+					if (errno == EOPNOTSUPP) {
+						falloc_ok = false;
+					} else {
+						err(1, "fallocate failed: dst @ %ldK", off / 1024);
+					}
 				}
-			} else {
-				warnx("modified block @ %ldK", off / 1024);
-				
-				if (lseek(fd_dst, -count, SEEK_CUR) != off) {
-					warnx("unexpected offset in dst");
-					abort();
-				}
-				
-				ssize_t b_written = write(fd_dst, buf_src, count);
-				if (b_written < 0) {
-					err(1, "write failed: dst @ %ldK", off / 1024);
-				} else if (b_written != count) {
-					errx(1, "parial write (%ld/%ld): dst @ %ldK",
-						b_written, count, off / 1024);
-				}
+			}
+			
+			warnx("modified block @ %ldK", off / 1024);
+			
+			if (lseek(fd_dst, -count, SEEK_CUR) != off) {
+				warnx("unexpected offset in dst");
+				abort();
+			}
+			
+			ssize_t b_written = write(fd_dst, buf_src, count);
+			if (b_written < 0) {
+				err(1, "write failed: dst @ %ldK", off / 1024);
+			} else if (b_written != count) {
+				errx(1, "parial write (%ld/%ld): dst @ %ldK",
+					b_written, count, off / 1024);
 			}
 		}
 		
