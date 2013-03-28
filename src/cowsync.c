@@ -9,18 +9,11 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 
 #define BLK_SIZE 4096
-
-
-/* goals:
-- truncate dest so it's the same size
-- block by block copy using mmap
-- write only when different
-- when it is different and src is zero, punch holes in dest
-*/
 
 
 const char *path_src = NULL;
@@ -29,9 +22,9 @@ int fd_src = -1;
 int fd_dst = -1;
 off_t len_src = 0;
 off_t len_dst = 0;
-char buf_zero[BLK_SIZE];
-char buf_src[BLK_SIZE];
-char buf_dst[BLK_SIZE];
+const char *mem_zero = NULL;
+const char *mem_src = NULL;
+char *mem_dst = NULL;
 
 bool falloc_ok = true;
 
@@ -41,7 +34,10 @@ int main(int argc, char **argv) {
 		errx(1, "expected 2 arguments");
 	}
 	
-	memset(buf_zero, 0, sizeof(buf_zero));
+	if ((mem_zero = mmap(NULL, BLK_SIZE, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS,
+		-1, 0)) == MAP_FAILED) {
+		err(1, "anonymous mmap failed");
+	}
 	
 	path_src = argv[1];
 	path_dst = argv[2];
@@ -68,38 +64,44 @@ int main(int argc, char **argv) {
 		if (ftruncate(fd_dst, len_src) < 0) {
 			err(1, "ftruncate failed");
 		}
+		
+		len_dst = lseek(fd_dst, 0, SEEK_END);
+		lseek(fd_dst, 0, SEEK_SET);
+		if (len_src != len_dst) {
+			warnx("src and dst lens differ");
+			abort();
+		}
+	}
+	
+	if ((mem_src = mmap(NULL, len_src, PROT_READ, MAP_SHARED,
+		fd_src, 0)) == MAP_FAILED) {
+		err(1, "mmap on src failed");
+	}
+	if ((mem_dst = mmap(NULL, len_dst, PROT_READ | PROT_WRITE, MAP_SHARED,
+		fd_dst, 0)) == MAP_FAILED) {
+		err(1, "mmap on dst failed");
 	}
 	
 	warnx("copying now");
 	off_t off = 0;
+	size_t b_written = 0;
+	size_t b_punched = 0;
 	while (off < len_src) {
 		ssize_t count = BLK_SIZE;
 		if ((len_src - off) < BLK_SIZE) {
 			count = (len_src - off);
 		}
 		
-		ssize_t b_read_src = read(fd_src, buf_src, count);
-		if (b_read_src < 0) {
-			err(1, "read failed: src @ %ldK", off / 1024);
-		} else if (b_read_src != count) {
-			errx(1, "parial read (%ld/%ld): src @ %ldK",
-				b_read_src, count, off / 1024);
-		}
+		const char *ptr_src = mem_src + off;
+		char *ptr_dst       = mem_dst + off;
 		
-		ssize_t b_read_dst = read(fd_dst, buf_dst, count);
-		if (b_read_dst < 0) {
-			err(1, "read failed: dst @ %ldK", off / 1024);
-		} else if (b_read_dst != count) {
-			errx(1, "parial read (%ld/%ld): dst @ %ldK",
-				b_read_dst, count, off / 1024);
-		}
-		
-		if (memcmp(buf_src, buf_dst, count) != 0) {
-			if (falloc_ok && memcmp(buf_src, buf_zero, count) == 0) {
-				warnx("modified block [zero] @ %ldK", off / 1024);
+		if (memcmp(ptr_src, ptr_dst, count) != 0) {
+			if (falloc_ok && memcmp(ptr_src, mem_zero, count) == 0) {
+				//warnx("modified block [zero] @ %ldK", off / 1024);
 				
 				if (fallocate(fd_dst, FALLOC_FL_KEEP_SIZE |
 					FALLOC_FL_PUNCH_HOLE, off, count) == 0) {
+					b_punched += count;
 					continue;
 				} else {
 					if (errno == EOPNOTSUPP) {
@@ -110,37 +112,22 @@ int main(int argc, char **argv) {
 				}
 			}
 			
-			warnx("modified block @ %ldK", off / 1024);
-			
-			if (lseek(fd_dst, -count, SEEK_CUR) != off) {
-				warnx("unexpected offset in dst");
-				abort();
-			}
-			
-			ssize_t b_written = write(fd_dst, buf_src, count);
-			if (b_written < 0) {
-				err(1, "write failed: dst @ %ldK", off / 1024);
-			} else if (b_written != count) {
-				errx(1, "parial write (%ld/%ld): dst @ %ldK",
-					b_written, count, off / 1024);
-			}
+			//warnx("modified block @ %ldK", off / 1024);
+			memcpy(ptr_dst, ptr_src, count);
+			b_written += count;
 		}
 		
 		off += count;
-		
-		if (lseek(fd_src, 0, SEEK_CUR) != off) {
-			warnx("unexpected offset in src");
-			abort();
-		}
-		if (lseek(fd_dst, 0, SEEK_CUR) != off) {
-			warnx("unexpected offset in dst");
-			abort();
-		}
 		
 		if ((off % (1 << 30)) == 0) {
 			warnx("progress: %ldG", off / (1 << 30));
 		}
 	}
+	
+	warnx("%luK written", b_written / 1024);
+	warnx("%luK punched", b_punched / 1024);
+	
+	// TODO: unmap
 	
 	if (close(fd_src) < 0) {
 		warn("close failed: %s", path_src);
