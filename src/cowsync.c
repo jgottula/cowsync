@@ -116,6 +116,9 @@ int main(int argc, char **argv) {
 				if (munlock(ptr_dst - CHUNK_SIZE, CHUNK_SIZE) < 0) {
 					err(1, "munlock on dst failed @ %ldK", off / 1024);
 				}
+				
+				madvise(ptr_src - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
+				madvise(ptr_dst - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
 			}
 			
 			if (mlock(ptr_src, len_chunk) < 0) {
