@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <linux/falloc.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -19,6 +20,7 @@
 
 #define CHUNK_SIZE (1024 * 1024 * 1024)
 #define BLOCK_SIZE 4096
+#define STAT_FREQ  (1024 * 1024)
 
 
 const char *path_src = NULL;
@@ -31,12 +33,43 @@ char *mem_zero = NULL;
 char *mem_src = NULL;
 char *mem_dst = NULL;
 
+off_t off = 0;
+size_t b_written = 0;
+size_t b_punched = 0;
+
 struct timespec time_before;
 struct timespec time_after;
 
 bool time_ok = true;
 bool falloc_ok = true;
 
+
+void print_stats(void) {
+	static bool is_first = true;
+	
+	if (!is_first) {
+		fputs("\e[3A", stderr);
+	} else {
+		is_first = false;
+	}
+	
+	float pct_read    = ((float)off / (float)len_src) * 100.;
+	float pct_written = ((float)b_written / (float)off) * 100.;
+	float pct_punched = ((float)b_punched / (float)off) * 100.;
+	
+	/* avoid NaN */
+	if (off == 0) {
+		pct_written = 0.;
+		pct_punched = 0.;
+	}
+	
+	fprintf(stderr, "\e[Kread:    %9ldK %3.0f%%\n",
+		off / 1024, pct_read);
+	fprintf(stderr, "\e[Kwritten: %9ldK %3.0f%%\n",
+		b_written / 1024, pct_written);
+	fprintf(stderr, "\e[Kpunched: %9ldK %3.0f%%\n",
+		b_punched / 1024, pct_punched);
+}
 
 int main(int argc, char **argv) {
 	if (argc != 3) {
@@ -103,10 +136,11 @@ int main(int argc, char **argv) {
 	}
 	
 	warnx("copying now");
-	off_t off = 0;
-	size_t b_written = 0;
-	size_t b_punched = 0;
 	while (off < len_src) {
+		if ((off % STAT_FREQ) == 0) {
+			print_stats();
+		}
+		
 		ssize_t count = BLOCK_SIZE;
 		if ((len_src - off) < BLOCK_SIZE) {
 			count = (len_src - off);
@@ -164,11 +198,9 @@ int main(int argc, char **argv) {
 		}
 		
 		off += count;
-		
-		if ((off % (1 << 30)) == 0) {
-			warnx("progress: %ldG", off / (1 << 30));
-		}
 	}
+	
+	print_stats();
 	
 	warnx("syncing pages");
 	if (munlockall() < 0) {
@@ -191,12 +223,6 @@ int main(int argc, char **argv) {
 	if (close(fd_dst) < 0) {
 		warn("close failed: %s", path_dst);
 	}
-	
-	float pct_written = ((float)b_written / (float)len_src) * 100.f;
-	float pct_punched = ((float)b_punched / (float)len_src) * 100.f;
-	
-	warnx("%luK (%d%%) written", b_written / 1024, (int)pct_written);
-	warnx("%luK (%d%%) punched", b_punched / 1024, (int)pct_punched);
 	
 	if (clock_gettime(CLOCK_MONOTONIC, &time_after) < 0) {
 		time_ok = false;
