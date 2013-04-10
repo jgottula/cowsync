@@ -35,6 +35,7 @@ char *mem_dst = NULL;
 
 off_t off = 0;
 size_t b_written = 0;
+size_t b_zeroed  = 0;
 size_t b_punched = 0;
 
 struct timespec time_before;
@@ -48,18 +49,20 @@ void print_stats(void) {
 	static bool is_first = true;
 	
 	if (!is_first) {
-		fputs("\e[3A", stderr);
+		fputs("\e[4A", stderr);
 	} else {
 		is_first = false;
 	}
 	
 	float pct_read    = ((float)off / (float)len_src) * 100.;
 	float pct_written = ((float)b_written / (float)off) * 100.;
+	float pct_zeroed  = ((float)b_zeroed / (float)off) * 100.;
 	float pct_punched = ((float)b_punched / (float)off) * 100.;
 	
 	/* avoid NaN */
 	if (off == 0) {
 		pct_written = 0.;
+		pct_zeroed  = 0.;
 		pct_punched = 0.;
 	}
 	
@@ -67,6 +70,8 @@ void print_stats(void) {
 		off / 1024, pct_read);
 	fprintf(stderr, "\e[Kwritten: %9ldK %3.0f%%\n",
 		b_written / 1024, pct_written);
+	fprintf(stderr, "\e[Kzeroed:  %9ldK %3.0f%%\n",
+		b_zeroed / 1024, pct_zeroed);
 	fprintf(stderr, "\e[Kpunched: %9ldK %3.0f%%\n",
 		b_punched / 1024, pct_punched);
 }
@@ -176,25 +181,31 @@ int main(int argc, char **argv) {
 		}
 		
 		if (memcmp(ptr_src, ptr_dst, count) != 0) {
-			if (falloc_ok && memcmp(ptr_src, mem_zero, count) == 0) {
+			if (memcmp(ptr_src, mem_zero, count) == 0) {
 				//warnx("modified block [zero] @ %ldK", off / 1024);
 				
-				if (fallocate(fd_dst, FALLOC_FL_KEEP_SIZE |
-					FALLOC_FL_PUNCH_HOLE, off, count) == 0) {
-					b_punched += count;
-					continue;
-				} else {
-					if (errno == EOPNOTSUPP) {
-						falloc_ok = false;
+				if (falloc_ok) {
+					if (fallocate(fd_dst, FALLOC_FL_KEEP_SIZE |
+						FALLOC_FL_PUNCH_HOLE, off, count) == 0) {
+						b_punched += count;
 					} else {
-						err(1, "fallocate failed: dst @ %ldK", off / 1024);
+						if (errno == EOPNOTSUPP) {
+							falloc_ok = false;
+						} else {
+							err(1, "fallocate failed: dst @ %ldK", off / 1024);
+						}
 					}
 				}
+				
+				if (!falloc_ok) {
+					memcpy(ptr_dst, mem_zero, count);
+					b_zeroed += count;
+				}
+			} else {
+				//warnx("modified block @ %ldK", off / 1024);
+				memcpy(ptr_dst, ptr_src, count);
+				b_written += count;
 			}
-			
-			//warnx("modified block @ %ldK", off / 1024);
-			memcpy(ptr_dst, ptr_src, count);
-			b_written += count;
 		}
 		
 		off += count;
