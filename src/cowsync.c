@@ -66,13 +66,13 @@ void print_stats(void) {
 		pct_punched = 0.;
 	}
 	
-	fprintf(stderr, "\e[K   read: %9ldK %3.0f%%\n",
+	fprintf(stderr, "\e[K   read: %9ldK %5.1f%%\n",
 		off / 1024, pct_read);
-	fprintf(stderr, "\e[Kwritten: %9ldK %3.0f%%\n",
+	fprintf(stderr, "\e[Kwritten: %9ldK %5.1f%%\n",
 		b_written / 1024, pct_written);
-	fprintf(stderr, "\e[K zeroed: %9ldK %3.0f%%\n",
+	fprintf(stderr, "\e[K zeroed: %9ldK %5.1f%%\n",
 		b_zeroed / 1024, pct_zeroed);
-	fprintf(stderr, "\e[Kpunched: %9ldK %3.0f%%\n",
+	fprintf(stderr, "\e[Kpunched: %9ldK %5.1f%%\n",
 		b_punched / 1024, pct_punched);
 }
 
