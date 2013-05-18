@@ -219,9 +219,9 @@ int main(int argc, char **argv) {
 	if (munlockall() < 0) {
 		warn("munlockall failed");
 	}
-	if (msync(mem_dst, len_dst, MS_SYNC) < 0) {
+	/*if (msync(mem_dst, len_dst, MS_SYNC) < 0) {
 		warn("msync on dst failed");
-	}
+	}*/
 	
 	if (munmap(mem_src, len_src) < 0) {
 		warn("munmap on src failed");
