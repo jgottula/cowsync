@@ -189,7 +189,9 @@ int main(int argc, char **argv) {
 						FALLOC_FL_PUNCH_HOLE, off, count) == 0) {
 						b_punched += count;
 					} else {
-						if (errno == EOPNOTSUPP) {
+						if (errno == EOPNOTSUPP ||
+							errno == ENOSYS ||
+							errno == ENODEV) {
 							falloc_ok = false;
 						} else {
 							err(1, "fallocate failed: dst @ %ldK", off / 1024);
