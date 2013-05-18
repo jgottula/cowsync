@@ -18,7 +18,22 @@
 #include <unistd.h>
 
 
-#define CHUNK_SIZE (1024 * 1024 * 1024)
+/* TODO: fix serialization of mlock(2) calls
+ * (1) use threads to do the mlocks simultaneously
+ * (2) ditch mlock and rely on MADV_SEQUENTIAL
+ * (3) mlock with interleaved 1MB blocks until the while 1GB is locked
+ *     (and hope that this actually does both IO's at once; unlikely)
+ */
+
+/* alternative plan:
+ * use asynchronous reads (read into local memory)
+ * and use poll(3) or something
+ */
+
+/* TODO: show average rate and ETA */
+
+
+#define CHUNK_SIZE (100 * 1024 * 1024)
 #define BLOCK_SIZE 4096
 #define STAT_FREQ  (1024 * 1024)
 
