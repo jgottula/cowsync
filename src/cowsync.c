@@ -172,12 +172,12 @@ int main(int argc, char **argv) {
 				madvise(ptr_dst - CHUNK_SIZE, CHUNK_SIZE, MADV_DONTNEED);
 			}
 			
-			if (mlock(ptr_src, len_chunk) < 0) {
+			/*if (mlock(ptr_src, len_chunk) < 0) {
 				err(1, "mlock on src failed @ %ldK", off / 1024);
 			}
 			if (mlock(ptr_dst, len_chunk) < 0) {
 				err(1, "mlock on dst failed @ %ldK", off / 1024);
-			}
+			}*/
 		}
 		
 		if (memcmp(ptr_src, ptr_dst, count) != 0) {
